@@ -1,3 +1,3 @@
 import { Platform } from 'react-native';
 
-export const API_URL = 'http://10.40.36.154:8080/api';
+export const API_URL = 'https://audio-to-note-backend.onrender.com/api';
