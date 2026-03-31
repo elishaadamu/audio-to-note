@@ -25,7 +25,7 @@ import { notesService } from '@/services/notesService';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Language } from '@/constants/Translations';
 
-const LANGUAGES = ['English', 'Spanish', 'French', 'German', 'Chinese', 'Arabic'];
+const LANGUAGES: Language[] = ['English', 'Spanish', 'French', 'German', 'Chinese', 'Arabic', 'Hausa', 'Igbo', 'Yoruba'];
 const MODELS = ['Whisper Base', 'Whisper Medium', 'Whisper Large'];
 const SUMMARY_STYLES = ['Concise', 'Detailed', 'Bullet Points', 'Academic'];
 const AI_MODELS = ['Gemini (Default)', 'OpenAI GPT-4o'];
@@ -230,10 +230,7 @@ export default function SettingsScreen() {
       options, 
       value: current, 
       setValue: async (val) => {
-        setter(val);
-        if (title === 'Language') {
-            await setGlobalLang(val as Language);
-        }
+        await setter(val);
       } 
     });
   };
@@ -310,7 +307,7 @@ export default function SettingsScreen() {
                 icon="translate"
                 label={t('language')}
                 value={globalLang}
-                onPress={() => openPicker(t('language'), LANGUAGES, globalLang, () => {})}
+                onPress={() => openPicker(t('language'), LANGUAGES, globalLang, (val) => setGlobalLang(val as Language))}
               />
               <SettingRow
                 icon="auto-awesome"

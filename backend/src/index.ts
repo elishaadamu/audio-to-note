@@ -1,9 +1,9 @@
+import "dotenv/config";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { GoogleAIFileManager } from "@google/generative-ai/server";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 import cors from "cors";
-import "dotenv/config";
 import express from "express";
 import fs from "fs";
 import multer from "multer";
@@ -36,8 +36,15 @@ app.use(cors());
 app.use(express.json());
 
 // Logger for debugging network issues
+const logFile = path.join(__dirname, "../server_error.log");
+const logger = (msg: string) => {
+  const formatted = `[${new Date().toISOString()}] ${msg}\n`;
+  console.log(formatted.trim());
+  fs.appendFileSync(logFile, formatted);
+};
+
 app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  logger(`${req.method} ${req.url}`);
   next();
 });
 
@@ -53,6 +60,7 @@ const authenticate = (req: any, res: any, next: any) => {
   const token = authHeader.split(" ")[1];
   const decoded = verifyToken(token);
   if (!decoded) {
+    logger(`Unauthorized: Invalid token for ${token.substring(0, 10)}...`);
     return res.status(401).json({ error: "Unauthorized: Invalid token" });
   }
 
@@ -247,7 +255,7 @@ app.get("/api/me", authenticate, async (req: any, res) => {
       id: user.id,
       email: user.email,
       name: user.name,
-      preferredLanguage: user.preferredLanguage,
+      preferredLanguage: (user as any).preferredLanguage,
     });
   } catch (error) {
     res.status(500).json({ error: "Internal server error" });
@@ -262,7 +270,7 @@ app.put("/api/me", authenticate, async (req: any, res) => {
     const data: any = {};
     if (name) data.name = name;
     if (email) data.email = email;
-    if (preferredLanguage) data.preferredLanguage = preferredLanguage;
+    if (preferredLanguage) (data as any).preferredLanguage = preferredLanguage;
     if (password) {
       if (password.length !== 4)
         return res.status(400).json({ error: "PIN must be exactly 4 digits" });
@@ -278,7 +286,7 @@ app.put("/api/me", authenticate, async (req: any, res) => {
       id: updatedUser.id,
       email: updatedUser.email,
       name: updatedUser.name,
-      preferredLanguage: updatedUser.preferredLanguage,
+      preferredLanguage: (updatedUser as any).preferredLanguage,
     });
   } catch (error: any) {
     if (error.code === "P2002")
@@ -297,7 +305,8 @@ app.get("/api/notes", authenticate, async (req: any, res) => {
       orderBy: { createdAt: "desc" },
     });
     res.json(notes);
-  } catch (error) {
+  } catch (error: any) {
+    logger(`Fetch notes error: ${error.stack || error}`);
     res.status(500).json({ error: "Failed to fetch notes." });
   }
 });
@@ -311,7 +320,8 @@ app.get("/api/notes/:id", authenticate, async (req: any, res) => {
     });
     if (!note) return res.status(404).json({ error: "Note not found" });
     res.json(note);
-  } catch (error) {
+  } catch (error: any) {
+    logger(`Fetch note by ID error: ${error.stack || error}`);
     res.status(500).json({ error: "Failed to fetch note." });
   }
 });
@@ -352,8 +362,8 @@ app.post("/api/notes", authenticate, async (req: any, res) => {
     });
 
     res.status(201).json(newNote);
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    logger(`Save note error: ${error.stack || error}`);
     res.status(500).json({ error: "Failed to save the note." });
   }
 });
@@ -420,7 +430,7 @@ app.post(
       const user = await prisma.user.findUnique({
         where: { id: req.user.userId },
       });
-      const targetLang = user?.preferredLanguage || "English";
+      const targetLang = (user as any)?.preferredLanguage || "English";
 
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
@@ -568,12 +578,12 @@ app.post("/api/notes/:id/reset", authenticate, async (req: any, res) => {
     let topic = note.topic;
 
     // If preferred language is not English, translate BEFORE resetting
-    if (user.preferredLanguage && user.preferredLanguage !== "English") {
+    if ((user as any).preferredLanguage && (user as any).preferredLanguage !== "English") {
       console.log(
-        `Resetting note ${id} to user's preferred language: ${user.preferredLanguage}`,
+        `Resetting note ${id} to user's preferred language: ${(user as any).preferredLanguage}`,
       );
       const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      const prompt = `Translate the following lecture notes into ${user.preferredLanguage}. 
+      const prompt = `Translate the following lecture notes into ${(user as any).preferredLanguage}. 
         CRITICAL: KEEP LABELS (TITLE:, TOPIC:, SUMMARY:, TRANSCRIPT:, QUIZ:) IN ENGLISH.
         
         TITLE: ${note.title}
@@ -582,7 +592,7 @@ app.post("/api/notes/:id/reset", authenticate, async (req: any, res) => {
         TRANSCRIPT: ${transcript}
         QUIZ: ${quiz || ""}
         
-        Translate EVERYTHING into ${user.preferredLanguage} EXCEPT labels and [MM:SS] timestamps.`;
+        Translate EVERYTHING into ${(user as any).preferredLanguage} EXCEPT labels and [MM:SS] timestamps.`;
 
       const result = await model.generateContent(prompt);
       const resultPayload = result.response.text();
