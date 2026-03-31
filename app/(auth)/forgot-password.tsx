@@ -91,12 +91,14 @@ export default function ForgotPasswordScreen() {
         className="flex-1"
       >
         <ScrollView
+          className="flex-1"
           contentContainerStyle={{
             flexGrow: 1,
-            justifyContent: "center",
             paddingHorizontal: 32,
+            paddingBottom: 40,
           }}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity
             className="absolute top-12 left-0 w-10 h-10 rounded-full bg-surfaceElevated items-center justify-center border border-surfaceBorder z-10"
@@ -109,7 +111,7 @@ export default function ForgotPasswordScreen() {
             />
           </TouchableOpacity>
 
-          <Animated.View entering={FadeInDown.duration(600).springify()}>
+          <Animated.View className="flex-1 justify-center" entering={FadeInDown.duration(600).springify()}>
             <View className="items-center mb-10 pt-10">
               <View className="w-20 h-20 rounded-3xl bg-accentLight items-center justify-center shadow-lg shadow-accent/40 mb-4">
                 <MaterialIcons

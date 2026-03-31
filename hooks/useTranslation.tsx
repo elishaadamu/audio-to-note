@@ -56,8 +56,17 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       } else {
         await SecureStore.setItemAsync('PREFERRED_LANG', lang);
       }
-      // Also update backend
-      await authService.updateMe({ preferredLanguage: lang });
+      // Also update backend only if logged in
+      let token = null;
+      if (Platform.OS === 'web') {
+        token = localStorage.getItem('AUTH_TOKEN');
+      } else {
+        token = await SecureStore.getItemAsync('AUTH_TOKEN');
+      }
+
+      if (token) {
+        await authService.updateMe({ preferredLanguage: lang });
+      }
     } catch (e) {
       console.error('Failed to save language', e);
     }

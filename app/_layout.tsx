@@ -47,8 +47,24 @@ export default function RootLayout() {
           // No token, redirect to auth welcome screen
           router.replace('/(auth)/welcome');
         } else {
-          // Token exists, proceed to app
-          router.replace('/(tabs)');
+          // Token exists, check 24-hour persistence
+          let lastLoginTime = null;
+          if (Platform.OS === 'web') {
+            lastLoginTime = localStorage.getItem('LAST_LOGIN_TIME');
+          } else {
+            lastLoginTime = await SecureStore.getItemAsync('LAST_LOGIN_TIME');
+          }
+
+          const twentyFourHours = 24 * 60 * 60 * 1000;
+          const now = Date.now();
+          
+          if (lastLoginTime && (now - parseInt(lastLoginTime)) < twentyFourHours) {
+            // Token is fresh (within 24h), proceed to app
+            router.replace('/(tabs)');
+          } else {
+            // Token expired or no time found, re-authenticate via PIN
+            router.replace('/(auth)/login');
+          }
         }
       } catch (e) {
         console.error('Auth check error', e);

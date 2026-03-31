@@ -12,7 +12,11 @@ model User {
   password  String
   name             String?
   preferredLanguage String    @default("English")
-  notes            Note[]
+  isVerified        Boolean   @default(false)
+  pin               String?
+  signupToken       String?
+  signupTokenExpiry DateTime?
+  notes             Note[]
   resetToken       String?
   resetTokenExpiry DateTime?
   createdAt        DateTime  @default(now())

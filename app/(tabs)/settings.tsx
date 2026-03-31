@@ -27,8 +27,6 @@ import { Language } from '@/constants/Translations';
 
 const LANGUAGES: Language[] = ['English', 'Spanish', 'French', 'German', 'Chinese', 'Arabic', 'Hausa', 'Igbo', 'Yoruba'];
 const MODELS = ['Whisper Base', 'Whisper Medium', 'Whisper Large'];
-const SUMMARY_STYLES = ['Concise', 'Detailed', 'Bullet Points', 'Academic'];
-const AI_MODELS = ['Gemini (Default)', 'OpenAI GPT-4o'];
 
 function SectionHeader({ title }: { title: string }) {
   return (
@@ -82,6 +80,31 @@ function SettingRow({
   );
 }
 
+function SkeletonRow() {
+  return (
+    <View className="flex-row items-center py-[14px] px-4 gap-3 border-b border-surfaceBorder">
+      <View className="w-[34px] h-[34px] rounded-[9px] bg-surfaceBorder/30" />
+      <View className="flex-1 gap-2">
+        <View className="w-1/3 h-4 bg-surfaceBorder/30 rounded" />
+      </View>
+      <View className="w-16 h-4 bg-surfaceBorder/20 rounded" />
+    </View>
+  );
+}
+
+function ProfileSkeleton() {
+  return (
+    <View className="flex-row items-center bg-surfaceElevated rounded-2xl border border-surfaceBorder p-4 gap-3.5 mb-5 opacity-60">
+      <View className="w-[52px] h-[52px] rounded-full bg-surfaceBorder/30" />
+      <View className="flex-1 gap-2">
+        <View className="w-24 h-4 bg-surfaceBorder/40 rounded" />
+        <View className="w-32 h-3 bg-surfaceBorder/20 rounded mt-1" />
+      </View>
+      <View className="w-20 h-8 bg-surfaceBorder/30 rounded-full" />
+    </View>
+  );
+}
+
 function SettingsCard({ children }: { children: React.ReactNode }) {
   return <View className="bg-surfaceElevated rounded-2xl border border-surfaceBorder overflow-hidden mb-1.5">{children}</View>;
 }
@@ -89,20 +112,18 @@ function SettingsCard({ children }: { children: React.ReactNode }) {
 export default function SettingsScreen() {
   const { language: globalLang, setLanguage: setGlobalLang, t } = useTranslation();
   const [model, setModel] = useState('Whisper Large');
-  const [aiModel, setAiModel] = useState('Gemini (Default)');
-  const [summaryStyle, setSummaryStyle] = useState('Detailed');
-  const [autoProcess, setAutoProcess] = useState(true);
-  const [saveLocally, setSaveLocally] = useState(true);
   
   const [userName, setUserName] = useState('User');
   const [userEmail, setUserEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isUserLoading, setIsUserLoading] = useState(true);
 
   // Profile Edit State
   const [editModal, setEditModal] = useState({ visible: false, type: '', value: '', title: '' });
 
   useEffect(() => {
     const loadUser = async () => {
+      setIsUserLoading(true);
       try {
         const userData = await authService.getMe();
         setUserName(userData.name || 'User');
@@ -113,6 +134,8 @@ export default function SettingsScreen() {
         } else {
           console.warn("Could not sync user profile:", err);
         }
+      } finally {
+        setIsUserLoading(false);
       }
     };
     loadUser();
@@ -253,43 +276,59 @@ export default function SettingsScreen() {
           </Animated.View>
 
           {/* Profile card */}
-          <Animated.View entering={FadeInDown.delay(100).springify()} className="flex-row items-center bg-surfaceElevated rounded-2xl border border-surfaceBorder p-4 gap-3.5 mb-5">
-            <View className="w-[52px] h-[52px] rounded-full bg-accentGlow border-2 border-accent items-center justify-center">
-              <MaterialIcons name="person" size={28} color={Colors.accent} />
-            </View>
-            <View className="flex-1 gap-1">
-              <Text className="text-textPrimary text-[15px] font-semibold">{userName}</Text>
-              <Text className="text-textMuted text-[11px]">{userEmail}</Text>
-            </View>
-            <TouchableOpacity 
-              className="bg-[#FF475718] border border-[#FF475730] px-4 py-2 rounded-full"
-              onPress={handleSignOut}
-            >
-              <Text className="text-danger text-[13px] font-semibold">{t('signOut')}</Text>
-            </TouchableOpacity>
+          <Animated.View entering={FadeInDown.delay(100).springify()}>
+            {isUserLoading ? (
+              <ProfileSkeleton />
+            ) : (
+              <View className="flex-row items-center bg-surfaceElevated rounded-2xl border border-surfaceBorder p-4 gap-3.5 mb-5">
+                <View className="w-[52px] h-[52px] rounded-full bg-accentGlow border-2 border-accent items-center justify-center">
+                  <MaterialIcons name="person" size={28} color={Colors.accent} />
+                </View>
+                <View className="flex-1 gap-1">
+                  <Text className="text-textPrimary text-[15px] font-semibold">{userName}</Text>
+                  <Text className="text-textMuted text-[11px]">{userEmail}</Text>
+                </View>
+                <TouchableOpacity 
+                  className="bg-[#FF475718] border border-[#FF475730] px-4 py-2 rounded-full"
+                  onPress={handleSignOut}
+                >
+                  <Text className="text-danger text-[13px] font-semibold">{t('signOut')}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </Animated.View>
 
           {/* Account Settings */}
           <Animated.View entering={FadeInDown.delay(120).springify()}>
             <SectionHeader title={t('accountProfile')} />
             <SettingsCard>
-              <SettingRow
-                icon="person-outline"
-                label={t('name')}
-                value={userName}
-                onPress={() => setEditModal({ visible: true, type: 'name', value: userName, title: t('editName') })}
-              />
-              <SettingRow
-                icon="mail-outline"
-                label={t('email')}
-                value={userEmail}
-                onPress={() => setEditModal({ visible: true, type: 'email', value: userEmail, title: t('editEmail') })}
-              />
-              <SettingRow
-                icon="lock-outline"
-                label={t('change4DigitPin')}
-                onPress={() => setEditModal({ visible: true, type: 'password', value: '', title: t('setNewPin') })}
-              />
+              {isUserLoading ? (
+                <>
+                  <SkeletonRow />
+                  <SkeletonRow />
+                  <SkeletonRow />
+                </>
+              ) : (
+                <>
+                  <SettingRow
+                    icon="person-outline"
+                    label={t('name')}
+                    value={userName}
+                    onPress={() => setEditModal({ visible: true, type: 'name', value: userName, title: t('editName') })}
+                  />
+                  <SettingRow
+                    icon="mail-outline"
+                    label={t('email')}
+                    value={userEmail}
+                    onPress={() => setEditModal({ visible: true, type: 'email', value: userEmail, title: t('editEmail') })}
+                  />
+                  <SettingRow
+                    icon="lock-outline"
+                    label={t('change4DigitPin')}
+                    onPress={() => setEditModal({ visible: true, type: 'pin', value: '', title: t('setNewPin') })}
+                  />
+                </>
+              )}
             </SettingsCard>
           </Animated.View>
 
@@ -309,81 +348,10 @@ export default function SettingsScreen() {
                 value={globalLang}
                 onPress={() => openPicker(t('language'), LANGUAGES, globalLang, (val) => setGlobalLang(val as Language))}
               />
-              <SettingRow
-                icon="auto-awesome"
-                label={t('autoProcess')}
-                rightElement={
-                  <Switch
-                    value={autoProcess}
-                    onValueChange={setAutoProcess}
-                    trackColor={{ true: Colors.accent, false: Colors.surfaceBorder }}
-                    thumbColor={Colors.textPrimary}
-                  />
-                }
-              />
             </SettingsCard>
           </Animated.View>
 
-          {/* AI Providers / Summarization */}
-          <Animated.View entering={FadeInDown.delay(200).springify()}>
-            <SectionHeader title={t('aiProvider')} />
-            <SettingsCard>
-              <SettingRow
-                icon="smart-toy"
-                label={t('aiProvider')}
-                value={aiModel}
-                onPress={() => openPicker(t('aiProvider'), AI_MODELS, aiModel, setAiModel)}
-              />
-              <SettingRow
-                icon="style"
-                label={t('summaryStyle')}
-                value={summaryStyle}
-                onPress={() => openPicker(t('summaryStyle'), SUMMARY_STYLES, summaryStyle, setSummaryStyle)}
-              />
-              <SettingRow
-                icon="format-list-bulleted"
-                label={t('includeKeyTerms')}
-                rightElement={
-                  <Switch
-                    value={true}
-                    onValueChange={() => {}}
-                    trackColor={{ true: Colors.accent, false: Colors.surfaceBorder }}
-                    thumbColor={Colors.textPrimary}
-                  />
-                }
-              />
-            </SettingsCard>
-          </Animated.View>
 
-          {/* Storage */}
-          <Animated.View entering={FadeInDown.delay(250).springify()}>
-            <SectionHeader title={t('storagePrivacy')} />
-            <SettingsCard>
-              <SettingRow
-                icon="save"
-                label={t('saveAudioLocally')}
-                rightElement={
-                  <Switch
-                    value={saveLocally}
-                    onValueChange={setSaveLocally}
-                    trackColor={{ true: Colors.accent, false: Colors.surfaceBorder }}
-                    thumbColor={Colors.textPrimary}
-                  />
-                }
-              />
-              <SettingRow
-                icon="cloud-upload"
-                label={t('cloudBackup')}
-                value="Off"
-                onPress={() => {}}
-              />
-              <SettingRow
-                icon="storage"
-                label={t('storageUsed')}
-                value="142 MB"
-              />
-            </SettingsCard>
-          </Animated.View>
 
           {/* App */}
           <Animated.View entering={FadeInDown.delay(300).springify()}>
@@ -465,9 +433,9 @@ export default function SettingsScreen() {
               }
               placeholderTextColor={Colors.textPlaceholder}
               autoFocus
-              keyboardType={editModal.type === 'password' ? 'number-pad' : 'default'}
-              maxLength={editModal.type === 'password' ? 4 : 50}
-              secureTextEntry={editModal.type === 'password'}
+              keyboardType={editModal.type === 'pin' ? 'number-pad' : 'default'}
+              maxLength={editModal.type === 'pin' ? 4 : 50}
+              secureTextEntry={editModal.type === 'pin'}
             />
 
             <View className="flex-row gap-3">

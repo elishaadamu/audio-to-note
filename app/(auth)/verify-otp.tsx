@@ -1,5 +1,4 @@
 import Colors from "@/constants/Colors";
-import { API_URL } from "@/constants/Config";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -17,12 +16,17 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
+import { authService } from "@/services/authService";
+import * as SecureStore from "expo-secure-store";
+import { useTranslation } from "@/hooks/useTranslation";
+import { Language } from "@/constants/Translations";
 
 export default function VerifyOtpScreen() {
-  const { email } = useLocalSearchParams();
+  const { email, isSignup } = useLocalSearchParams();
   const [token, setToken] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+  const { setLanguage } = useTranslation();
 
   // Blinking Cursor Logic
   const [isCursorVisible, setIsCursorVisible] = useState(true);
@@ -45,37 +49,34 @@ export default function VerifyOtpScreen() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/verify-reset-token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, token }),
-      });
+      if (isSignup === "true") {
+        const data = await authService.verifySignupOtp(email as string, token);
+        
+        // Sync language
+        if (data.user?.preferredLanguage) {
+          await setLanguage(data.user.preferredLanguage as Language);
+        }
 
-      const data = await response.json();
+        // Save token temporarily for set-pin
+        if (Platform.OS === "web") {
+          localStorage.setItem("AUTH_TOKEN", data.token);
+        } else {
+          await SecureStore.setItemAsync("AUTH_TOKEN", data.token);
+        }
 
-      if (!response.ok) {
-        throw new Error(data.error || "Verification failed");
+        Alert.alert(
+          "Verified!",
+          "Email verified successfully. Let's set your security PIN.",
+          [{ text: "Continue", onPress: () => router.push("/(auth)/set-pin") }]
+        );
+      } else {
+        await authService.verifyOtp(email as string, token);
+        Alert.alert(
+          "Verified",
+          "Success! Let's reset your security PIN.",
+          [{ text: "Continue", onPress: () => router.push({ pathname: "/(auth)/reset-password", params: { email, token } } as any) }]
+        );
       }
-
-      // Success Alert as requested
-      Alert.alert(
-        "Verified",
-        "Your code is correct. You can now reset your PIN.",
-        [
-          { 
-            text: "Continue", 
-            onPress: () => {
-              router.push({
-                pathname: "/(auth)/reset-password",
-                params: { email, token }
-              } as any);
-            }
-          }
-        ]
-      );
-
     } catch (error: any) {
       Toast.show({
         type: "error",
@@ -95,12 +96,14 @@ export default function VerifyOtpScreen() {
         className="flex-1"
       >
         <ScrollView
+          className="flex-1"
           contentContainerStyle={{
             flexGrow: 1,
             paddingHorizontal: 32,
-            justifyContent: "center",
+            paddingBottom: 40,
           }}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
           <TouchableOpacity
             className="absolute top-6 left-0 w-10 h-10 rounded-full bg-surfaceElevated items-center justify-center border border-surfaceBorder"
@@ -113,20 +116,20 @@ export default function VerifyOtpScreen() {
             />
           </TouchableOpacity>
 
-          <Animated.View entering={FadeInDown.duration(600).springify()}>
+          <Animated.View className="flex-1 justify-center" entering={FadeInDown.duration(600).springify()}>
             <View className="items-center mb-8">
               <View className="w-20 h-20 rounded-3xl bg-accentLight items-center justify-center shadow-lg shadow-accent/40 mb-4">
                 <MaterialIcons
-                  name="phonelink-lock"
+                  name="verified-user"
                   size={40}
                   color={Colors.textPrimary}
                 />
               </View>
               <Text className="text-3xl font-extrabold text-textPrimary tracking-tight text-center">
-                Verify Code
+                Check Your Email
               </Text>
               <Text className="text-textSecondary mt-2 text-center px-4">
-                Enter the 6-digit code sent to {email}
+                Enter the 6-digit verification code we sent to {email}
               </Text>
             </View>
 

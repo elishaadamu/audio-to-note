@@ -1,6 +1,6 @@
 import Colors from "@/constants/Colors";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -18,18 +18,14 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import Toast from "react-native-toast-message";
 import { authService } from "@/services/authService";
 
-export default function ResetPinScreen() {
-  const params = useLocalSearchParams();
-  const email = params.email as string;
-  const token = params.token as string;
-  
+export default function SetPinScreen() {
   const [pin, setPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
   const router = useRouter();
 
-  const handleResetPin = async (finalPin: string) => {
+  const handleSetPin = async (finalPin: string) => {
     if (finalPin.length !== 4) return;
 
     if (!isConfirming) {
@@ -52,17 +48,17 @@ export default function ResetPinScreen() {
 
     setIsLoading(true);
     try {
-      await authService.resetPin(email, finalPin, token);
+      await authService.setPin(finalPin);
       Toast.show({
         type: "success",
-        text1: "Success",
-        text2: "Your security PIN has been reset successfully.",
+        text1: "Welcome to AudioNote!",
+        text2: "Security PIN set. Please log in now.",
       });
       router.replace("/(auth)/login");
     } catch (error: any) {
       Toast.show({
         type: "error",
-        text1: "Reset Failed",
+        text1: "Failed to set PIN",
         text2: error.message,
       });
       setIsConfirming(false);
@@ -77,10 +73,10 @@ export default function ResetPinScreen() {
     const clean = val.replace(/\D/g, "").slice(0, 4);
     if (isConfirming) {
       setConfirmPin(clean);
-      if (clean.length === 4) handleResetPin(clean);
+      if (clean.length === 4) handleSetPin(clean);
     } else {
       setPin(clean);
-      if (clean.length === 4) handleResetPin(clean);
+      if (clean.length === 4) handleSetPin(clean);
     }
   };
 
@@ -94,6 +90,7 @@ export default function ResetPinScreen() {
   }, []);
 
   const inputRef = React.useRef<TextInput>(null);
+
   const displayPin = isConfirming ? confirmPin : pin;
 
   return (
@@ -113,29 +110,18 @@ export default function ResetPinScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <TouchableOpacity
-            className="absolute top-6 left-0 w-10 h-10 rounded-full bg-surfaceElevated items-center justify-center border border-surfaceBorder"
-            onPress={() => router.back()}
-          >
-            <MaterialIcons
-              name="arrow-back"
-              size={24}
-              color={Colors.textPrimary}
-            />
-          </TouchableOpacity>
-
           <Animated.View className="flex-1 justify-center" entering={FadeInDown.duration(600).springify()}>
             <View className="items-center mb-12">
               <View className="w-24 h-24 rounded-3xl bg-accentLight items-center justify-center shadow-lg shadow-accent/40 mb-6 border-2 border-surfaceBorder">
-                <MaterialIcons name={isConfirming ? "security" : "vpn-key"} size={52} color={Colors.textPrimary} />
+                <MaterialIcons name={isConfirming ? "security" : "lock"} size={52} color={Colors.textPrimary} />
               </View>
               <Text className="text-3xl font-extrabold text-textPrimary tracking-tight text-center">
-                {isConfirming ? "Confirm New PIN" : "Reset Security PIN"}
+                {isConfirming ? "Confirm PIN" : "Create Access PIN"}
               </Text>
               <Text className="text-textSecondary mt-2 text-center px-4">
                 {isConfirming 
-                  ? "Re-enter your new PIN to confirm." 
-                  : "Enter a new 4-digit security PIN for your account."}
+                  ? "Enter the same 4-digit code to confirm." 
+                  : "Set a 4-digit PIN for quick and secure access to your notes."}
               </Text>
             </View>
 
