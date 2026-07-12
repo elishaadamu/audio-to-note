@@ -38,7 +38,7 @@ model Note {
   audioUrl           String?
   status             String   @default("processed")
   userId             String
-  user       User     @relation(fields: [userId], references: [id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }

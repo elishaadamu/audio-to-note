@@ -1,3 +1,7 @@
-import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
-export const API_URL = 'https://audio-to-note-backend.onrender.com/api';
+// Dynamically get the IP address of your Mac running the Expo server
+const debuggerHost = Constants.expoConfig?.hostUri;
+const localhost = debuggerHost ? debuggerHost.split(':')[0] : 'localhost';
+
+export const API_URL = `http://${localhost}:8080/api`;

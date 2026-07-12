@@ -86,11 +86,26 @@ export default function LoginScreen() {
 
       router.replace("/(tabs)");
     } catch (error: any) {
-      Toast.show({
-        type: "error",
-        text1: "Login Failed",
-        text2: error.message,
-      });
+      const errMsg = error.message || "";
+      if (errMsg.includes("Please verify your email first")) {
+        Toast.show({
+          type: "info",
+          text1: "Email Not Verified",
+          text2: "Redirecting to verification page...",
+        });
+        setTimeout(() => {
+          router.push({
+            pathname: "/(auth)/verify-otp",
+            params: { email, isSignup: "true" }
+          } as any);
+        }, 1500);
+      } else {
+        Toast.show({
+          type: "error",
+          text1: "Login Failed",
+          text2: errMsg,
+        });
+      }
       setPin(""); // Clear PIN on error
     } finally {
       setIsLoading(false);

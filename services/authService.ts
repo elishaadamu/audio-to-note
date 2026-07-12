@@ -36,6 +36,13 @@ export const authService = {
     });
   },
 
+  resendSignupOtp: async (email: string) => {
+    return apiRequest("/resend-signup-otp", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  },
+
   setPin: async (pin: string) => {
     return apiRequest("/set-pin", {
       method: "POST",

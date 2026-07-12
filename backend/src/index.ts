@@ -168,6 +168,7 @@ app.post("/api/reset-password", async (req, res) => {
         pin: hashedPin,
         resetToken: null,
         resetTokenExpiry: null,
+        isVerified: true, // Mark as verified since they completed email-based OTP verification
       },
     });
 
@@ -226,7 +227,7 @@ app.post("/api/signup", async (req, res) => {
     // Send Verification OTP Email
     try {
       const transporter = getTransporter();
-      await transporter.sendMail({
+      transporter.sendMail({
         from: `"AudioNote Support" <${process.env.SMTP_USER}>`,
         to: email,
         subject: "Verify Your Email - AudioNote",
@@ -247,9 +248,9 @@ app.post("/api/signup", async (req, res) => {
             </div>
           </div>
         `,
-      });
-    } catch (mailError) {
-      console.error("Signup verification email failed:", mailError);
+      }).catch(mailError => console.error("Signup verification email failed:", mailError));
+    } catch (setupError) {
+      console.error("Failed to setup email transporter:", setupError);
     }
 
     res.status(201).json({
@@ -263,6 +264,68 @@ app.post("/api/signup", async (req, res) => {
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
+app.post("/api/resend-signup-otp", async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email)
+      return res.status(400).json({ error: "Email is required" });
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user)
+      return res.status(404).json({ error: "User with this email not found" });
+
+    if (user.isVerified)
+      return res.status(400).json({ error: "Email is already verified" });
+
+    // Generate numeric 6-digit token for signup verification
+    const token = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await prisma.user.update({
+      where: { email },
+      data: {
+        signupToken: token,
+        signupTokenExpiry: expiry,
+      },
+    });
+
+    // Send Verification OTP Email
+    try {
+      const transporter = getTransporter();
+      transporter.sendMail({
+        from: `"AudioNote Support" <${process.env.SMTP_USER}>`,
+        to: email,
+        subject: "Verify Your Email - AudioNote",
+        html: `
+          <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 500px; padding: 40px; border-radius: 20px; background-color: #ffffff; border: 1px solid #f0f0f0; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+            <div style="text-align: center; margin-bottom: 30px;">
+              <h1 style="color: #6C63FF; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">AudioNote</h1>
+              <p style="color: #888; font-size: 14px; margin-top: 5px;">Your AI Academic Companion</p>
+            </div>
+            <h2 style="color: #1a1a1a; margin-bottom: 10px; font-size: 20px; font-weight: 700;">Verify Your Email</h2>
+            <p style="color: #555; line-height: 1.6; font-size: 16px;">Welcome back, ${user.name || 'there'}! Please use the following code to complete your signup and start transforming your lectures:</p>
+            <div style="background: #f8f8ff; padding: 25px; border-radius: 12px; text-align: center; font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #6C63FF; margin: 30px 0; border: 1px dashed #6C63FF;">
+              ${token}
+            </div>
+            <p style="color: #999; font-size: 13px; text-align: center;">This code will expire in 15 minutes. If you didn't request this, just ignore this email.</p>
+            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #bbb; font-size: 11px; text-align: center;">
+              © 2026 AudioNote Study Suite. Professional AI Audio Analysis.
+            </div>
+          </div>
+        `,
+      }).catch(mailError => console.error("Resend signup verification email failed:", mailError));
+    } catch (setupError) {
+      console.error("Failed to setup email transporter for resend:", setupError);
+    }
+
+    res.json({ message: "Verification code resent successfully" });
+  } catch (error) {
+    console.error("Resend OTP Error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 
 app.post("/api/verify-signup-otp", async (req, res) => {
   try {

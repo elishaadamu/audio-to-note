@@ -28,6 +28,41 @@ export default function VerifyOtpScreen() {
   const router = useRouter();
   const { setLanguage } = useTranslation();
 
+  const [resendTimer, setResendTimer] = useState(0);
+  const [isResending, setIsResending] = useState(false);
+
+  // Resend Timer countdown
+  React.useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (resendTimer > 0) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer]);
+
+  const handleResendOtp = async () => {
+    setIsResending(true);
+    try {
+      await authService.resendSignupOtp(email as string);
+      Toast.show({
+        type: "success",
+        text1: "Code Sent",
+        text2: "A new verification code has been sent to your email.",
+      });
+      setResendTimer(120); // 120 seconds interval
+    } catch (error: any) {
+      Toast.show({
+        type: "error",
+        text1: "Resend Failed",
+        text2: error.message,
+      });
+    } finally {
+      setIsResending(false);
+    }
+  };
+
   // Blinking Cursor Logic
   const [isCursorVisible, setIsCursorVisible] = useState(true);
   React.useEffect(() => {
@@ -182,6 +217,23 @@ export default function VerifyOtpScreen() {
                   </Text>
                 )}
               </TouchableOpacity>
+
+              {isSignup === "true" && (
+                <TouchableOpacity
+                  onPress={handleResendOtp}
+                  disabled={resendTimer > 0 || isResending}
+                  className="mt-6 py-2 w-full items-center"
+                  activeOpacity={0.7}
+                >
+                  {isResending ? (
+                    <ActivityIndicator color={Colors.accentLight} />
+                  ) : (
+                    <Text className={`text-[15px] font-bold ${resendTimer > 0 ? 'text-textMuted' : 'text-accentLight'}`}>
+                      {resendTimer > 0 ? `Resend Code in ${resendTimer}s` : 'Resend Code'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              )}
             </View>
           </Animated.View>
         </ScrollView>

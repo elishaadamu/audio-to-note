@@ -12,7 +12,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.adamuelisha.audiotonote",
       "infoPlist": {
-        "UIBackgroundModes": ["audio"]
+        "UIBackgroundModes": [
+          "audio"
+        ]
       }
     },
     "android": {
@@ -52,7 +54,8 @@
       ],
       "expo-audio",
       "expo-secure-store",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,
