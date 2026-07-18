@@ -1,7 +1,5 @@
 import Constants from 'expo-constants';
 
-// Dynamically get the IP address of your Mac running the Expo server
-const debuggerHost = Constants.expoConfig?.hostUri;
-const localhost = debuggerHost ? debuggerHost.split(':')[0] : 'localhost';
+// Backend Production API URL on Render
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://audio-to-note-backend-1.onrender.com/api';
 
-export const API_URL = `http://${localhost}:8080/api`;
