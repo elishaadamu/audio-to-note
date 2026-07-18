@@ -33,12 +33,10 @@ export default function VerifyOtpScreen() {
 
   // Resend Timer countdown
   React.useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (resendTimer > 0) {
-      interval = setInterval(() => {
-        setResendTimer((prev) => prev - 1);
-      }, 1000);
-    }
+    if (resendTimer <= 0) return;
+    const interval = setInterval(() => {
+      setResendTimer((prev) => prev - 1);
+    }, 1000);
     return () => clearInterval(interval);
   }, [resendTimer]);
 
