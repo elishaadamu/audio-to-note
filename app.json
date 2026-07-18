@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "AudioNote AI",
-    "slug": "audio-to-note",
+    "slug": "audio-to-note-converter",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
