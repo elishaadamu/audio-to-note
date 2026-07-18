@@ -42,3 +42,4 @@ backend/
 # generated native folders
 /ios
 /android
+/admin-dashboard
