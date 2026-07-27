@@ -873,7 +873,17 @@ app.get("/api/admin/stats", async (req, res) => {
     const recentUsers = await prisma.user.findMany({
       take: 5,
       orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, email: true, isVerified: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isVerified: true,
+        signupToken: true,
+        signupTokenExpiry: true,
+        resetToken: true,
+        resetTokenExpiry: true,
+        createdAt: true,
+      },
     });
 
     const recentNotes = await prisma.note.findMany({
@@ -914,6 +924,10 @@ app.get("/api/admin/users", async (req, res) => {
         email: true,
         isVerified: true,
         preferredLanguage: true,
+        signupToken: true,
+        signupTokenExpiry: true,
+        resetToken: true,
+        resetTokenExpiry: true,
         createdAt: true,
         _count: { select: { notes: true } },
       },
