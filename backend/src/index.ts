@@ -71,14 +71,34 @@ const authenticate = (req: any, res: any, next: any) => {
 // --- AUTH ROUTES ---
 
 // Configure Email Transporter (Lazy-load to ensure env variables are ready)
-const getTransporter = () =>
-  nodemailer.createTransport({
+const getTransporter = () => {
+  const user = process.env.SMTP_USER?.trim();
+  const rawPass = process.env.SMTP_PASS?.trim() || "";
+  const pass = rawPass.replace(/^["']|["']$/g, "").replace(/\s+/g, "");
+  const host = process.env.SMTP_HOST?.trim();
+  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT.trim(), 10) : undefined;
+  const secure = process.env.SMTP_SECURE === "true" || port === 465;
+
+  if (host) {
+    return nodemailer.createTransport({
+      host,
+      port: port || 587,
+      secure: process.env.SMTP_SECURE !== undefined ? secure : (port === 465),
+      auth: {
+        user,
+        pass,
+      },
+    });
+  }
+
+  return nodemailer.createTransport({
     service: "gmail",
     auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      user,
+      pass,
     },
   });
+};
 
 app.post("/api/forgot-password", async (req, res) => {
   try {
@@ -1011,6 +1031,10 @@ app.get("/api/admin/settings", async (req, res) => {
       JWT_SECRET: process.env.JWT_SECRET || "",
       SMTP_USER: process.env.SMTP_USER || "",
       SMTP_PASS: process.env.SMTP_PASS || "",
+      SMTP_HOST: process.env.SMTP_HOST || "",
+      SMTP_PORT: process.env.SMTP_PORT || "",
+      SMTP_SECURE: process.env.SMTP_SECURE || "",
+      SMTP_FROM: process.env.SMTP_FROM || "",
     });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to fetch settings." });
@@ -1019,16 +1043,105 @@ app.get("/api/admin/settings", async (req, res) => {
 
 app.post("/api/admin/settings", async (req, res) => {
   try {
-    const { DATABASE_URL, GEMINI_API_KEY, JWT_SECRET, SMTP_USER, SMTP_PASS } = req.body;
+    const {
+      DATABASE_URL,
+      GEMINI_API_KEY,
+      JWT_SECRET,
+      SMTP_USER,
+      SMTP_PASS,
+      SMTP_HOST,
+      SMTP_PORT,
+      SMTP_SECURE,
+      SMTP_FROM,
+    } = req.body;
     if (DATABASE_URL !== undefined) process.env.DATABASE_URL = DATABASE_URL;
     if (GEMINI_API_KEY !== undefined) process.env.GEMINI_API_KEY = GEMINI_API_KEY;
     if (JWT_SECRET !== undefined) process.env.JWT_SECRET = JWT_SECRET;
     if (SMTP_USER !== undefined) process.env.SMTP_USER = SMTP_USER;
     if (SMTP_PASS !== undefined) process.env.SMTP_PASS = SMTP_PASS;
+    if (SMTP_HOST !== undefined) process.env.SMTP_HOST = SMTP_HOST;
+    if (SMTP_PORT !== undefined) process.env.SMTP_PORT = SMTP_PORT;
+    if (SMTP_SECURE !== undefined) process.env.SMTP_SECURE = SMTP_SECURE;
+    if (SMTP_FROM !== undefined) process.env.SMTP_FROM = SMTP_FROM;
 
     res.json({ message: "Environment settings updated successfully in memory!" });
   } catch (error: any) {
     res.status(500).json({ error: "Failed to update settings." });
+  }
+});
+
+// Admin Email / SMTP Tester Endpoint
+app.post("/api/admin/test-email", async (req, res) => {
+  try {
+    const user = process.env.SMTP_USER?.trim();
+    const pass = process.env.SMTP_PASS?.trim();
+
+    if (!user || !pass) {
+      return res.status(400).json({
+        error: "SMTP credentials are missing. Please ensure SMTP_USER and SMTP_PASS are configured in your environment.",
+        success: false,
+      });
+    }
+
+    const { recipientEmail, testRecipient, to } = req.body || {};
+    const targetEmail = recipientEmail || testRecipient || to || user;
+
+    const transporter = getTransporter();
+
+    // Verify SMTP connection
+    await transporter.verify();
+
+    // Send test email
+    const sender = process.env.SMTP_FROM?.trim() || `"AudioNote System" <${user}>`;
+    const info = await transporter.sendMail({
+      from: sender,
+      to: targetEmail,
+      subject: "AudioNote SMTP Test Email ✅",
+      html: `
+        <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 520px; padding: 32px; border-radius: 16px; background-color: #ffffff; border: 1px solid #e2e8f0; margin: 0 auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <div style="display: inline-block; background-color: #EEF2FF; color: #6366F1; font-size: 28px; width: 60px; height: 60px; line-height: 60px; border-radius: 50%;">✨</div>
+            <h2 style="color: #1E293B; margin: 16px 0 6px; font-size: 22px; font-weight: 700;">SMTP Connected Successfully!</h2>
+            <p style="color: #64748B; font-size: 14px; margin: 0;">AudioNote Email Transporter is Active</p>
+          </div>
+          <p style="color: #334155; line-height: 1.6; font-size: 15px;">Your SMTP configuration is working perfectly. Your server can now deliver user verification OTPs, password reset emails, and notifications.</p>
+          <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; padding: 14px 18px; border-radius: 10px; font-size: 13px; color: #475569; margin: 20px 0; line-height: 1.8;">
+            <div><strong>Sender:</strong> ${user}</div>
+            <div><strong>Recipient:</strong> ${targetEmail}</div>
+            <div><strong>Timestamp:</strong> ${new Date().toISOString()}</div>
+          </div>
+          <p style="color: #94A3B8; font-size: 12px; text-align: center; margin-top: 24px; border-top: 1px solid #F1F5F9; padding-top: 16px;">
+            AudioNote Admin System • Live Verification
+          </p>
+        </div>
+      `,
+    });
+
+    res.json({
+      success: true,
+      message: `Test email sent successfully to ${targetEmail}!`,
+      messageId: info.messageId,
+    });
+  } catch (error: any) {
+    console.error("SMTP Test Error:", error);
+    let errorMessage = error.message || "Failed to send test email";
+    if (
+      error.code === "EAUTH" ||
+      errorMessage.includes("535-5.7.8") ||
+      errorMessage.includes("Username and Password not accepted")
+    ) {
+      errorMessage =
+        "SMTP Authentication failed (EAUTH). If using Gmail, make sure you generated a 16-character Google 'App Password' (not regular password) and enabled 2-Step Verification on the Google Account.";
+    } else if (error.code === "ETIMEDOUT" || error.code === "ESOCKET") {
+      errorMessage =
+        `SMTP Connection failed (${error.code}). Check your network connection or SMTP host/port.`;
+    }
+    res.status(500).json({
+      success: false,
+      error: errorMessage,
+      code: error.code,
+      details: error.message,
+    });
   }
 });
 
