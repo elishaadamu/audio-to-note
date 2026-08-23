@@ -383,10 +383,14 @@ export default function NoteDetailScreen() {
   useEffect(() => {
     return () => {
       if (sound) {
-        sound.unloadAsync();
+        sound.unloadAsync().catch(() => {});
+        setSound(null);
+        setIsPlaying(false);
+        setPlaybackPos(0);
+        setPlaybackDur(0);
       }
     };
-  }, [sound]);
+  }, [id, audioUri, sound]);
 
   const togglePlayback = async () => {
     if (sound) {

@@ -26,12 +26,12 @@ function WaveBar({ level, isRecording, index }: { level: number; isRecording: bo
   useEffect(() => {
     if (isRecording) {
       // Base calculation on the incoming 0-1 level volume
-      const targetHeight = 4 + Math.max(0, level * 42); // scaling to fit ~46px height dynamically
+      const targetHeight = 4 + Math.max(0, level * 28); // scaling to fit ~36px height dynamically
       
       // Inject static high-frequency detail directly into the bar height based on its position index
       // to make a single global volume metric look like an acoustic frequency spectrum
       const fauxFrequency = Math.sin(index * 0.8) * Math.cos(index * 1.5);
-      const variance = fauxFrequency * (level * 16);
+      const variance = fauxFrequency * (level * 10);
       
       height.value = withSpring(Math.max(4, targetHeight + variance), { 
         damping: 14, 
@@ -84,7 +84,7 @@ export default function WaveformVisualizer({ isRecording, metering = -160, barCo
   }, [metering, isRecording]);
 
   return (
-    <View className="flex-row items-center justify-center h-[72px] gap-[3px] px-2">
+    <View className="flex-row items-center justify-center h-[62px] gap-[3px] px-2">
       {levels.map((level, i) => (
         <WaveBar key={i} index={i} level={level} isRecording={isRecording} />
       ))}

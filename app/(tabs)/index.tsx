@@ -4,7 +4,7 @@ import Colors from "@/constants/Colors";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system/legacy";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import * as DocumentPicker from 'expo-document-picker';
 import React, { useEffect, useRef, useState } from "react";
@@ -182,9 +182,10 @@ export default function RecordScreen() {
       
       if (uri) {
         // Expo Go frequently sweeps its /cache/ directory aggressively on Android.
-        // We MUST deeply copy the temporary audio buffer payload straight into the persistent Device Document space!
+        // We copy the temporary audio buffer payload into persistent Device Document space with a unique filename
         const ext = uri.split(".").pop() || "m4a";
-        const safePersistentUri = `${FileSystem.documentDirectory}live_lecture_audio_temp.${ext}`;
+        const uniqueFileName = `recording_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+        const safePersistentUri = `${FileSystem.documentDirectory}${uniqueFileName}`;
 
         console.log("Copying to persistent storage:", safePersistentUri);
         await FileSystem.copyAsync({
@@ -279,6 +280,27 @@ export default function RecordScreen() {
     setIsPlaying(false);
   };
 
+  const handleProcessNotes = async () => {
+    if (!recordedUri) return;
+    const targetUri = recordedUri;
+    const targetDuration = duration;
+
+    // Unload any audio preview
+    if (sound) {
+      await sound.unloadAsync().catch(() => {});
+      setSound(null);
+    }
+
+    // Reset recording state so the screen shows Record & Upload when returning
+    setRecordedUri(null);
+    setDuration(0);
+    setIsPlaying(false);
+
+    router.push(
+      `/note/new-note?audioUri=${encodeURIComponent(targetUri)}&duration=${targetDuration}`,
+    );
+  };
+
   const handleUploadAudio = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -343,27 +365,27 @@ export default function RecordScreen() {
     opacity: headerOpacity.value,
   }));
 
-  const containerPaddingTop = Platform.OS === "ios" ? "pt-4" : "pt-16";
+  const containerPaddingTop = Platform.OS === "ios" ? "pt-4" : "pt-8";
 
   return (
     <SafeAreaView className="flex-1 bg-background">
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
       <ScrollView
         className="flex-1"
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 28 }}
         showsVerticalScrollIndicator={false}
       >
         <View className={`px-6 ${containerPaddingTop} items-center`}>
           {/* Header */}
           <Animated.View
             style={[headerAnimStyle]}
-            className="w-full mb-8 gap-3"
+            className="w-full mb-6 gap-2.5"
           >
             <Animated.View entering={FadeInDown.delay(100).springify()}>
-              <Text className="text-3xl font-extrabold text-textPrimary tracking-tight">
+              <Text className="text-[28px] font-extrabold text-textPrimary tracking-tight">
                 {t('readyToRecord')}
               </Text>
-              <Text className="text-[13px] text-textSecondary mt-1 leading-relaxed">
+              <Text className="text-[13px] text-textSecondary mt-0.5 leading-snug">
                 {t('tapToStart')}
               </Text>
             </Animated.View>
@@ -371,9 +393,9 @@ export default function RecordScreen() {
             {/* Status chips */}
             <Animated.View
               entering={FadeInDown.delay(200).springify()}
-              className="flex-row gap-2"
+              className="flex-row gap-2 mt-1"
             >
-              <View className="flex-row items-center gap-1.5 bg-surfaceElevated border border-surfaceBorder rounded-full px-2.5 py-1.5">
+              <View className="flex-row items-center gap-1.5 bg-surfaceElevated border border-surfaceBorder rounded-full px-3 py-1.5">
                 <MaterialIcons
                   name="graphic-eq"
                   size={13}
@@ -383,7 +405,7 @@ export default function RecordScreen() {
                   Gemini 2.5
                 </Text>
               </View>
-              <View className="flex-row items-center gap-1.5 bg-surfaceElevated border border-surfaceBorder rounded-full px-2.5 py-1.5">
+              <View className="flex-row items-center gap-1.5 bg-surfaceElevated border border-surfaceBorder rounded-full px-3 py-1.5">
                 <MaterialIcons
                   name="auto-awesome"
                   size={13}
@@ -399,12 +421,12 @@ export default function RecordScreen() {
           {/* Timer */}
           <Animated.View
             entering={FadeIn.delay(150)}
-            className="items-center justify-center mb-6 mt-2 min-h-[96px] gap-1"
+            className="items-center justify-center mb-4 mt-1 min-h-[72px] gap-1"
           >
             {isRecording || recordedUri ? (
               <>
                 {isRecording && (
-                  <View className="w-2 h-2 rounded-full bg-danger mb-1" />
+                  <View className="w-2 h-2 rounded-full bg-danger mb-0.5" />
                 )}
                 <Text
                   className="text-[48px] font-extrabold text-textPrimary tracking-tighter"
@@ -414,11 +436,11 @@ export default function RecordScreen() {
                 </Text>
 
                 {isRecording ? (
-                  <Text className="text-[11px] font-bold text-danger tracking-[3px]">
+                  <Text className="text-[11px] font-bold text-danger tracking-[2.5px]">
                     {isPaused ? t('paused_status') : t('record_status')}
                   </Text>
                 ) : (
-                  <Text className="text-[11px] font-bold text-success tracking-[3px]">
+                  <Text className="text-[11px] font-bold text-success tracking-[2.5px]">
                     {t('saved_status')}
                   </Text>
                 )}
@@ -433,7 +455,7 @@ export default function RecordScreen() {
           {/* Waveform */}
           <Animated.View
             entering={FadeIn.delay(200)}
-            className="w-full bg-surfaceElevated rounded-2xl border border-surfaceBorder mb-8 overflow-hidden py-2"
+            className="w-full bg-surfaceElevated rounded-2xl border border-surfaceBorder mb-7 overflow-hidden py-2"
           >
             <WaveformVisualizer
               isRecording={(isRecording && !isPaused) || isPlaying}
@@ -445,33 +467,31 @@ export default function RecordScreen() {
           {!recordedUri && (
             <Animated.View
               entering={FadeInDown.delay(300).springify()}
-              className="items-center gap-6 mb-5"
+              className="items-center gap-4 mb-5 w-full"
             >
               {!isRecording ? (
-                <View className="flex-row items-center justify-center gap-4 w-full">
+                <View className="flex-row items-center justify-center gap-9 w-full">
                   <View className="items-center">
                     <RecordButton
                       isRecording={isRecording}
                       onPress={startRecording}
-                      size={88}
+                      size={92}
                     />
-                    <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-widest -mt-8">
+                    <Text className="text-[12px] font-bold text-textSecondary uppercase tracking-widest mt-3">
                       {t('record')}
                     </Text>
                   </View>
 
                   <View className="items-center">
-                    <View style={{ width: 88 * 2, height: 88 * 2 }} className="items-center justify-center">
-                      <TouchableOpacity
-                        onPress={handleUploadAudio}
-                        className="w-[88px] h-[88px] rounded-full bg-surfaceElevated border border-surfaceBorder items-center justify-center"
-                        style={{ borderStyle: 'dashed' }}
-                        activeOpacity={0.7}
-                      >
-                        <MaterialIcons name="upload-file" size={32} color={Colors.accent} />
-                      </TouchableOpacity>
-                    </View>
-                    <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-widest -mt-8">
+                    <TouchableOpacity
+                      onPress={handleUploadAudio}
+                      className="w-[92px] h-[92px] rounded-full bg-surfaceElevated border border-surfaceBorder items-center justify-center shadow-lg shadow-black/30"
+                      style={{ borderStyle: 'dashed' }}
+                      activeOpacity={0.7}
+                    >
+                      <MaterialIcons name="upload-file" size={36} color={Colors.accent} />
+                    </TouchableOpacity>
+                    <Text className="text-[12px] font-bold text-textSecondary uppercase tracking-widest mt-3">
                       {t('upload')}
                     </Text>
                   </View>
@@ -481,15 +501,15 @@ export default function RecordScreen() {
                    <RecordButton
                     isRecording={isRecording}
                     onPress={stopRecording}
-                    size={88}
+                    size={92}
                   />
-                  <Text className="text-[11px] font-bold text-textSecondary uppercase tracking-widest mt-2">
+                  <Text className="text-[12px] font-bold text-textSecondary uppercase tracking-widest mt-3">
                     {t('stop')}
                   </Text>
                 </View>
               )}
               
-              <Text className="text-[13px] text-textMuted tracking-tight">
+              <Text className="text-[13px] text-textMuted tracking-tight mt-1.5">
                 {isRecording ? t('tapToStop') : t('selectAudioSource')}
               </Text>
             </Animated.View>
@@ -497,7 +517,7 @@ export default function RecordScreen() {
 
           {/* Pause button for Recording */}
           {isRecording && (
-            <Animated.View entering={FadeInDown.springify()} className="mb-6">
+            <Animated.View entering={FadeInDown.springify()} className="mb-5">
               <TouchableOpacity
                 className="flex-row items-center gap-2 bg-surfaceElevated border border-surfaceBorder rounded-full px-6 py-3"
                 onPress={handlePauseResumeRecord}
@@ -519,11 +539,11 @@ export default function RecordScreen() {
           {!isRecording && recordedUri && (
             <Animated.View
               entering={FadeInDown.springify()}
-              className="w-full gap-4 mt-2 mb-6"
+              className="w-full gap-3 mt-2 mb-5"
             >
               <TouchableOpacity
                 onPress={handlePlayPauseSound}
-                className="flex-row items-center justify-center gap-2 py-4 bg-accent rounded-2xl shadow-lg shadow-accent/30"
+                className="flex-row items-center justify-center gap-2 py-3.5 bg-accent rounded-2xl shadow-lg shadow-accent/30"
                 activeOpacity={0.8}
               >
                 <MaterialIcons
@@ -546,24 +566,19 @@ export default function RecordScreen() {
                     size={18}
                     color={Colors.danger}
                   />
-                  <Text className="text-danger font-semibold">{t('discard')}</Text>
+                  <Text className="text-danger font-semibold text-[13px]">{t('discard')}</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  onPress={() => {
-                    // Route precisely to the backend AI analysis engine overlay
-                    router.push(
-                      `/note/new-note?audioUri=${encodeURIComponent(recordedUri || "mock")}&duration=${duration}`,
-                    );
-                  }}
-                  className="flex-row items-center justify-center gap-2 py-3 bg-[#2ED57318] border border-[#2ED57330] rounded-xl px-8"
+                  onPress={handleProcessNotes}
+                  className="flex-row items-center justify-center gap-2 py-3 bg-[#2ED57318] border border-[#2ED57330] rounded-xl px-7"
                 >
                   <MaterialIcons
                     name="auto-awesome"
                     size={18}
                     color={Colors.success}
                   />
-                  <Text className="text-success font-semibold">
+                  <Text className="text-success font-semibold text-[13px]">
                     {t('processNotes')}
                   </Text>
                 </TouchableOpacity>
@@ -575,7 +590,7 @@ export default function RecordScreen() {
           {!isRecording && !recordedUri && (
             <Animated.View
               entering={FadeInDown.delay(500).springify()}
-              className="flex-row gap-2 w-full justify-center flex-wrap"
+              className="flex-row gap-2 w-full justify-center flex-wrap mt-4"
             >
               {[
                 { icon: "record-voice-over", label: t('speech_to_text') },

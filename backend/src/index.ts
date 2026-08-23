@@ -75,29 +75,23 @@ const getTransporter = () => {
   const user = process.env.SMTP_USER?.trim();
   const rawPass = process.env.SMTP_PASS?.trim() || "";
   const pass = rawPass.replace(/^["']|["']$/g, "").replace(/\s+/g, "");
-  const host = process.env.SMTP_HOST?.trim();
-  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT.trim(), 10) : undefined;
+  const host = process.env.SMTP_HOST?.trim() || "smtp.gmail.com";
+  const port = process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT.trim(), 10) : 587;
   const secure = process.env.SMTP_SECURE === "true" || port === 465;
 
-  if (host) {
-    return nodemailer.createTransport({
-      host,
-      port: port || 587,
-      secure: process.env.SMTP_SECURE !== undefined ? secure : (port === 465),
-      auth: {
-        user,
-        pass,
-      },
-    });
-  }
-
   return nodemailer.createTransport({
-    service: "gmail",
+    host,
+    port,
+    secure,
     auth: {
       user,
       pass,
     },
-  });
+    family: 4, // Force IPv4 to avoid ENETUNREACH on Render/cloud networks
+    tls: {
+      rejectUnauthorized: false,
+    },
+  } as any);
 };
 
 app.post("/api/forgot-password", async (req, res) => {

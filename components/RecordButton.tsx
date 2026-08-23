@@ -115,7 +115,7 @@ export default function RecordButton({ isRecording, onPress, size = 88 }: Record
   const glowColor = isRecording ? Colors.dangerGlow : Colors.accentGlow;
 
   return (
-    <View className="items-center justify-center" style={{ width: size * 2, height: size * 2 }}>
+    <View className="items-center justify-center" style={{ width: size, height: size, overflow: 'visible' }}>
       {/* Ripple rings */}
       <Animated.View
         className="absolute border-2"
@@ -148,9 +148,9 @@ export default function RecordButton({ isRecording, onPress, size = 88 }: Record
         style={[
           glowStyle,
           {
-            width: size + 32,
-            height: size + 32,
-            borderRadius: (size + 32) / 2,
+            width: size + 24,
+            height: size + 24,
+            borderRadius: (size + 24) / 2,
             backgroundColor: glowColor,
           },
         ]}
@@ -173,8 +173,8 @@ export default function RecordButton({ isRecording, onPress, size = 88 }: Record
             className="bg-white/85"
             style={
               isRecording
-                ? { width: 26, height: 26, borderRadius: 4 }
-                : { width: 22, height: 22, borderRadius: 11 }
+                ? { width: 22, height: 22, borderRadius: 4 }
+                : { width: 18, height: 18, borderRadius: 9 }
             }
           />
         </TouchableOpacity>
