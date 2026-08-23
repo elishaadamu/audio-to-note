@@ -52,9 +52,9 @@ export default function SetPinScreen() {
       Toast.show({
         type: "success",
         text1: "Welcome to AudioNote!",
-        text2: "Security PIN set. Please log in now.",
+        text2: "Security PIN created successfully.",
       });
-      router.replace("/(auth)/login");
+      router.replace("/(tabs)");
     } catch (error: any) {
       Toast.show({
         type: "error",

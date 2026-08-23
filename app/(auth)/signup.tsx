@@ -36,7 +36,6 @@ export default function SignupScreen() {
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSignup = async () => {
-    // ... rest of handleSignup ...
     if (!name || !email || !password) {
       Toast.show({
         type: "error",
@@ -45,11 +44,11 @@ export default function SignupScreen() {
       });
       return;
     }
-    if (password.length < 6) {
+    if (password.length < 4) {
       Toast.show({
         type: "error",
         text1: "Weak Password",
-        text2: "Password must be at least 6 characters.",
+        text2: "Password must be at least 4 characters.",
       });
       return;
     }
@@ -59,21 +58,42 @@ export default function SignupScreen() {
       await setGlobalLanguage(language);
       const data = await authService.signup(name, email, password, language);
 
-      Toast.show({
-        type: "success",
-        text1: "Verification Sent",
-        text2: "Please check your email for the OTP.",
-      });
+      const loginTime = Date.now().toString();
 
-      router.push({
-        pathname: "/(auth)/verify-otp",
-        params: { email, isSignup: "true" }
-      } as any);
+      if (Platform.OS === "web") {
+        localStorage.setItem("AUTH_TOKEN", data.token);
+        localStorage.setItem("USER_ID", data.user.id);
+        localStorage.setItem("USER_NAME", data.user.name || name || "User");
+        localStorage.setItem("LAST_USER_EMAIL", data.user.email);
+        localStorage.setItem("LAST_LOGIN_TIME", loginTime);
+      } else {
+        await SecureStore.setItemAsync("AUTH_TOKEN", data.token);
+        await SecureStore.setItemAsync("USER_ID", data.user.id);
+        await SecureStore.setItemAsync("USER_NAME", data.user.name || name || "User");
+        await SecureStore.setItemAsync("LAST_USER_EMAIL", data.user.email);
+        await SecureStore.setItemAsync("LAST_LOGIN_TIME", loginTime);
+      }
+
+      if (data.user?.hasPin) {
+        Toast.show({
+          type: "success",
+          text1: "Account Created",
+          text2: "Welcome to AudioNote!",
+        });
+        router.replace("/(tabs)");
+      } else {
+        Toast.show({
+          type: "success",
+          text1: "Account Created",
+          text2: "Let's set your quick 4-digit security PIN.",
+        });
+        router.replace("/(auth)/set-pin");
+      }
     } catch (error: any) {
       Toast.show({
         type: "error",
         text1: "Signup Failed",
-        text2: error.message,
+        text2: error.message || "Failed to create account.",
       });
     } finally {
       setIsLoading(false);

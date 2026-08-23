@@ -15,10 +15,10 @@ export const authService = {
     });
   },
 
-  resetPin: async (email: string, pin: string, token: string) => {
+  resetPin: async (email: string, pin: string, token?: string) => {
     return apiRequest("/reset-password", {
       method: "POST",
-      body: JSON.stringify({ email, newPassword: pin, token }),
+      body: JSON.stringify({ email, newPassword: pin, pin }),
     });
   },
 

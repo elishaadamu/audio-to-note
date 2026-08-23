@@ -38,7 +38,8 @@ export default function ForgotPasswordScreen() {
   };
 
   const handleRequestCode = async () => {
-    if (!email) {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) {
       Toast.show({
         type: "error",
         text1: "Missing email",
@@ -49,34 +50,16 @@ export default function ForgotPasswordScreen() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_URL}/forgot-password`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to request reset code");
-      }
-
-      Toast.show({
-        type: "success",
-        text1: "Success",
-        text2: "Verification code has been sent to your email.",
-      });
+      // Direct navigation to Reset PIN with email
       router.push({
-        pathname: "/(auth)/verify-otp",
-        params: { email },
+        pathname: "/(auth)/reset-password",
+        params: { email: cleanEmail },
       } as any);
     } catch (error: any) {
       Toast.show({
         type: "error",
         text1: "Error",
-        text2: error.message,
+        text2: error.message || "Failed to proceed",
       });
     } finally {
       setIsLoading(false);
@@ -121,11 +104,10 @@ export default function ForgotPasswordScreen() {
                 />
               </View>
               <Text className="text-3xl font-extrabold text-textPrimary tracking-tight">
-                Forgot PIN
+                Reset PIN
               </Text>
               <Text className="text-textSecondary mt-2 text-center">
-                Enter your email and we'll send you a 6-digit code to reset your
-                PIN.
+                Enter your account email to set a new security PIN.
               </Text>
             </View>
 
@@ -157,7 +139,7 @@ export default function ForgotPasswordScreen() {
                   <ActivityIndicator color={Colors.textPrimary} />
                 ) : (
                   <Text className="text-textPrimary text-[16px] font-bold">
-                    SEND CODE
+                    CONTINUE
                   </Text>
                 )}
               </TouchableOpacity>

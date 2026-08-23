@@ -52,18 +52,27 @@ export default function ResetPinScreen() {
 
     setIsLoading(true);
     try {
-      await authService.resetPin(email, finalPin, token);
+      await authService.resetPin(email, finalPin);
+
+      if (email) {
+        if (Platform.OS === "web") {
+          localStorage.setItem("LAST_USER_EMAIL", email);
+        } else {
+          await SecureStore.setItemAsync("LAST_USER_EMAIL", email);
+        }
+      }
+
       Toast.show({
         type: "success",
-        text1: "Success",
-        text2: "Your security PIN has been reset successfully.",
+        text1: "PIN Updated",
+        text2: "Your security PIN has been updated. Please sign in.",
       });
       router.replace("/(auth)/login");
     } catch (error: any) {
       Toast.show({
         type: "error",
         text1: "Reset Failed",
-        text2: error.message,
+        text2: error.message || "Failed to reset PIN",
       });
       setIsConfirming(false);
       setPin("");

@@ -84,21 +84,34 @@ export default function LoginScreen() {
         await SecureStore.setItemAsync("LAST_LOGIN_TIME", loginTime);
       }
 
+      if (data.requiresSetPin) {
+        Toast.show({
+          type: "info",
+          text1: "Set PIN",
+          text2: "Please create your 4-digit security PIN.",
+        });
+        router.replace("/(auth)/set-pin");
+        return;
+      }
+
       router.replace("/(tabs)");
     } catch (error: any) {
       const errMsg = error.message || "";
-      if (errMsg.includes("Please verify your email first")) {
+      if (
+        errMsg.toLowerCase().includes("no security pin") || 
+        errMsg.toLowerCase().includes("set your pin") ||
+        errMsg.toLowerCase().includes("verify your email") ||
+        errMsg.toLowerCase().includes("not verified")
+      ) {
         Toast.show({
           type: "info",
-          text1: "Email Not Verified",
-          text2: "Redirecting to verification page...",
+          text1: "Set Access PIN",
+          text2: "Let's set your 4-digit security PIN to access your account.",
         });
-        setTimeout(() => {
-          router.push({
-            pathname: "/(auth)/verify-otp",
-            params: { email, isSignup: "true" }
-          } as any);
-        }, 1500);
+        router.push({
+          pathname: "/(auth)/reset-password",
+          params: { email: email.trim().toLowerCase() }
+        } as any);
       } else {
         Toast.show({
           type: "error",

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import Toast from 'react-native-toast-message';
 import { View, Platform, useColorScheme as useGlobalColorScheme } from 'react-native';
-import { router, Stack } from 'expo-router';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
 import * as SecureStore from 'expo-secure-store';
@@ -14,9 +14,9 @@ export default function RootLayout() {
   const { colorScheme, setColorScheme } = useColorScheme();
   const systemTheme = useGlobalColorScheme();
 
+  // Load Theme Preference
   useEffect(() => {
-    const initializeApp = async () => {
-      // 1. Load Theme
+    const loadTheme = async () => {
       try {
         let savedTheme = null;
         if (Platform.OS === 'web') {
@@ -33,46 +33,9 @@ export default function RootLayout() {
       } catch (e) {
         console.error('Failed to load theme preference', e);
       }
-
-      // 2. Check Authentication
-      try {
-        let token = null;
-        if (Platform.OS === 'web') {
-          token = localStorage.getItem('AUTH_TOKEN');
-        } else {
-          token = await SecureStore.getItemAsync('AUTH_TOKEN');
-        }
-
-        if (!token) {
-          // No token, redirect to auth welcome screen
-          router.replace('/(auth)/welcome');
-        } else {
-          // Token exists, check 24-hour persistence
-          let lastLoginTime = null;
-          if (Platform.OS === 'web') {
-            lastLoginTime = localStorage.getItem('LAST_LOGIN_TIME');
-          } else {
-            lastLoginTime = await SecureStore.getItemAsync('LAST_LOGIN_TIME');
-          }
-
-          const twentyFourHours = 24 * 60 * 60 * 1000;
-          const now = Date.now();
-          
-          if (lastLoginTime && (now - parseInt(lastLoginTime)) < twentyFourHours) {
-            // Token is fresh (within 24h), proceed to app
-            router.replace('/(tabs)');
-          } else {
-            // Token expired or no time found, re-authenticate via PIN
-            router.replace('/(auth)/login');
-          }
-        }
-      } catch (e) {
-        console.error('Auth check error', e);
-        router.replace('/(auth)/welcome');
-      }
     };
 
-    initializeApp();
+    loadTheme();
   }, []);
 
   return (
@@ -81,6 +44,7 @@ export default function RootLayout() {
         <View className={`flex-1 ${colorScheme === 'dark' ? 'dark bg-background' : 'bg-background'}`}>
           <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
           <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+            <Stack.Screen name="index" options={{ headerShown: false }} />
             <Stack.Screen name="(auth)" options={{ headerShown: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen

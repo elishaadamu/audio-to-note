@@ -97,115 +97,64 @@ const getTransporter = () => {
 app.post("/api/forgot-password", async (req, res) => {
   try {
     const { email } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user)
       return res.status(404).json({ error: "User with this email not found" });
 
-    // Generate numeric 6-digit token
-    const token = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-
-    await prisma.user.update({
-      where: { email },
-      data: { resetToken: token, resetTokenExpiry: expiry },
+    res.json({ 
+      success: true,
+      message: "User verified. You can now reset your security PIN.",
+      email: normalizedEmail 
     });
-
-    const transporter = getTransporter();
-    // Send the email
-    const mailOptions = {
-      from: `"AudioNote Support" <${process.env.SMTP_USER}>`,
-      to: email,
-      subject: "Password Reset Verification Code",
-      html: `
-        <div style="font-family: sans-serif; max-width: 500px; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-          <h2 style="color: #6C63FF; margin-bottom: 20px;">AudioNote Recovery</h2>
-          <p>You requested a password reset. Please use the following 6-digit verification code to reset your password:</p>
-          <div style="background: #f4f4f4; padding: 15px; border-radius: 8px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; color: #333; margin: 20px 0;">
-            ${token}
-          </div>
-          <p style="color: #666; font-size: 14px;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
-        </div>
-      `,
-    };
-
-    await transporter.sendMail(mailOptions);
-    res.json({ message: "Verification code sent to your email" });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Forgot Password Error:", error);
-    res.status(500).json({ error: "Failed to send reset email" });
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
 app.post("/api/verify-reset-token", async (req, res) => {
   try {
-    const { email, token } = req.body;
-    const user = await prisma.user.findFirst({
-      where: {
-        email,
-        resetToken: token,
-        resetTokenExpiry: { gt: new Date() },
-      },
-    });
-
-    if (!user)
-      return res
-        .status(400)
-        .json({ error: "Invalid or expired verification code" });
-
     res.json({ message: "Code verified successfully" });
   } catch (error) {
-    console.error("Verify Token Error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
 app.post("/api/reset-password", async (req, res) => {
   try {
-    const { email, token, newPassword } = req.body;
-    const user = await prisma.user.findFirst({
-      where: {
-        email,
-        resetToken: token,
-        resetTokenExpiry: { gt: new Date() },
-      },
-    });
+    const { email, newPassword, pin } = req.body;
+    const targetPin = pin || newPassword;
+    if (!email || !targetPin) {
+      return res.status(400).json({ error: "Email and new PIN are required" });
+    }
+
+    if (targetPin.length !== 4) {
+      return res.status(400).json({ error: "PIN must be exactly 4 digits" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
     if (!user)
-      return res
-        .status(400)
-        .json({ error: "Invalid or expired verification code" });
+      return res.status(404).json({ error: "User with this email not found" });
 
-    const hashedPin = await hashPassword(newPassword); // Reusing hashPassword for PIN
+    const hashedPin = await hashPassword(targetPin);
     await prisma.user.update({
       where: { id: user.id },
       data: {
         pin: hashedPin,
         resetToken: null,
         resetTokenExpiry: null,
-        isVerified: true, // Mark as verified since they completed email-based OTP verification
+        isVerified: true,
       },
     });
 
-    // Send confirmation email
-    try {
-      const transporter = getTransporter();
-      await transporter.sendMail({
-        from: `"AudioNote Support" <${process.env.SMTP_USER}>`,
-        to: email,
-        subject: "Security PIN Reset Success",
-        html: `
-          <div style="font-family: sans-serif; max-width: 500px; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
-            <h2 style="color: #34C759; margin-bottom: 20px;">Success!</h2>
-            <p>Your AudioNote security PIN has been successfully reset. You can now use your new PIN to sign in to your account.</p>
-            <p style="color: #666; font-size: 14px;">If you did not perform this action, please secure your account immediately.</p>
-          </div>
-        `,
-      });
-    } catch (err) {
-      console.error("Confirmation email failed:", err);
-    }
-
-    res.json({ message: "Password reset successful!" });
+    res.json({ message: "Security PIN reset successfully!" });
   } catch (error) {
     console.error("Reset Password Error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -218,210 +167,49 @@ app.post("/api/signup", async (req, res) => {
     if (!email || !password)
       return res.status(400).json({ error: "Email and password are required" });
 
-    if (password.length < 6)
-      return res.status(400).json({ error: "Password must be at least 6 characters" });
+    if (password.length < 4)
+      return res.status(400).json({ error: "Password must be at least 4 characters" });
 
-    // Generate numeric 6-digit token for signup verification
-    const token = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const normalizedEmail = email.trim().toLowerCase();
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+    if (existing) {
+      return res.status(400).json({ error: "An account with this email already exists" });
+    }
 
     const hashedPassword = await hashPassword(password);
+    const isFourDigitPin = /^\d{4}$/.test(password.trim());
+    const hashedPin = isFourDigitPin ? hashedPassword : null;
+
     const user = await prisma.user.create({
       data: { 
-        email, 
+        email: normalizedEmail, 
         password: hashedPassword, 
-        name,
+        pin: hashedPin,
+        name: name?.trim() || "User",
         preferredLanguage: preferredLanguage || "English",
-        isVerified: false,
-        signupToken: token,
-        signupTokenExpiry: expiry
+        isVerified: true, // Automatically verified upon signup
+        signupToken: null,
+        signupTokenExpiry: null,
       },
     });
 
-    // Send Verification OTP Email
-    try {
-      const transporter = getTransporter();
-      transporter.sendMail({
-        from: `"AudioNote Support" <${process.env.SMTP_USER}>`,
-        to: email,
-        subject: "Verify Your Email - AudioNote",
-        html: `
-          <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 500px; padding: 40px; border-radius: 20px; background-color: #ffffff; border: 1px solid #f0f0f0; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #6C63FF; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">AudioNote</h1>
-              <p style="color: #888; font-size: 14px; margin-top: 5px;">Your AI Academic Companion</p>
-            </div>
-            <h2 style="color: #1a1a1a; margin-bottom: 10px; font-size: 20px; font-weight: 700;">Verify Your Email</h2>
-            <p style="color: #555; line-height: 1.6; font-size: 16px;">Welcome, ${name || 'there'}! Please use the following code to complete your signup and start transforming your lectures:</p>
-            <div style="background: #f8f8ff; padding: 25px; border-radius: 12px; text-align: center; font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #6C63FF; margin: 30px 0; border: 1px dashed #6C63FF;">
-              ${token}
-            </div>
-            <p style="color: #999; font-size: 13px; text-align: center;">This code will expire in 15 minutes. If you didn't create an account, just ignore this email.</p>
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #bbb; font-size: 11px; text-align: center;">
-              © 2026 AudioNote Study Suite. Professional AI Audio Analysis.
-            </div>
-          </div>
-        `,
-      }).catch(mailError => console.error("Signup verification email failed:", mailError));
-    } catch (setupError) {
-      console.error("Failed to setup email transporter:", setupError);
-    }
+    const token = generateToken(user.id);
 
     res.status(201).json({
-      message: "Signup successful, please verify your email",
-      email: user.email
-    });
-  } catch (error: any) {
-    if (error.code === "P2002")
-      return res.status(400).json({ error: "Email already exists" });
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-app.post("/api/resend-signup-otp", async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email)
-      return res.status(400).json({ error: "Email is required" });
-
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user)
-      return res.status(404).json({ error: "User with this email not found" });
-
-    if (user.isVerified)
-      return res.status(400).json({ error: "Email is already verified" });
-
-    // Generate numeric 6-digit token for signup verification
-    const token = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-    await prisma.user.update({
-      where: { email },
-      data: {
-        signupToken: token,
-        signupTokenExpiry: expiry,
-      },
-    });
-
-    // Send Verification OTP Email
-    try {
-      const transporter = getTransporter();
-      transporter.sendMail({
-        from: `"AudioNote Support" <${process.env.SMTP_USER}>`,
-        to: email,
-        subject: "Verify Your Email - AudioNote",
-        html: `
-          <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 500px; padding: 40px; border-radius: 20px; background-color: #ffffff; border: 1px solid #f0f0f0; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 30px;">
-              <h1 style="color: #6C63FF; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -1px;">AudioNote</h1>
-              <p style="color: #888; font-size: 14px; margin-top: 5px;">Your AI Academic Companion</p>
-            </div>
-            <h2 style="color: #1a1a1a; margin-bottom: 10px; font-size: 20px; font-weight: 700;">Verify Your Email</h2>
-            <p style="color: #555; line-height: 1.6; font-size: 16px;">Welcome back, ${user.name || 'there'}! Please use the following code to complete your signup and start transforming your lectures:</p>
-            <div style="background: #f8f8ff; padding: 25px; border-radius: 12px; text-align: center; font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #6C63FF; margin: 30px 0; border: 1px dashed #6C63FF;">
-              ${token}
-            </div>
-            <p style="color: #999; font-size: 13px; text-align: center;">This code will expire in 15 minutes. If you didn't request this, just ignore this email.</p>
-            <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; color: #bbb; font-size: 11px; text-align: center;">
-              © 2026 AudioNote Study Suite. Professional AI Audio Analysis.
-            </div>
-          </div>
-        `,
-      }).catch(mailError => console.error("Resend signup verification email failed:", mailError));
-    } catch (setupError) {
-      console.error("Failed to setup email transporter for resend:", setupError);
-    }
-
-    res.json({ message: "Verification code resent successfully" });
-  } catch (error) {
-    console.error("Resend OTP Error:", error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-});
-
-
-app.post("/api/verify-signup-otp", async (req, res) => {
-  try {
-    const { email, token } = req.body;
-    const user = await prisma.user.findFirst({
-      where: {
-        email,
-        signupToken: token,
-        signupTokenExpiry: { gt: new Date() },
-      },
-    });
-
-    if (!user)
-      return res.status(400).json({ error: "Invalid or expired verification code" });
-
-    // Mark as verified
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { isVerified: true, signupToken: null, signupTokenExpiry: null },
-    });
-
-    // Send Onboarding Success Email
-    try {
-      const transporter = getTransporter();
-      await transporter.sendMail({
-        from: `"AudioNote Success" <${process.env.SMTP_USER}>`,
-        to: email,
-        subject: "Welcome Aboard! Onboarding Successful",
-        html: `
-          <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 600px; padding: 0; border-radius: 24px; background-color: #ffffff; border: 1px solid #eee; margin: 0 auto; overflow: hidden; box-shadow: 0 10px 30px rgba(108, 99, 255, 0.1);">
-            <div style="background: linear-gradient(135deg, #6C63FF 0%, #4B45B2 100%); padding: 60px 40px; text-align: center; color: #ffffff;">
-              <div style="background: rgba(255,255,255,0.2); width: 80px; height: 80px; border-radius: 20px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 24px; text-align: center; line-height: 80px;">
-                <span style="font-size: 40px;">🚀</span>
-              </div>
-              <h1 style="margin: 0; font-size: 36px; font-weight: 800; letter-spacing: -1px;">You're In!</h1>
-              <p style="font-size: 18px; margin-top: 12px; opacity: 0.9;">Your AudioNote journey begins now.</p>
-            </div>
-            
-            <div style="padding: 40px;">
-              <h2 style="color: #1a1a1a; margin-bottom: 16px; font-size: 24px; font-weight: 700;">Onboarding Successful, ${user.name || 'User'}!</h2>
-              <p style="color: #555; line-height: 1.8; font-size: 16px; margin-bottom: 24px;">
-                We're beyond excited to have you join our community. Your account is now fully verified and ready for action.
-              </p>
-              
-              <div style="background: #fdfdff; border: 1px solid #edf0ff; border-radius: 16px; padding: 24px; margin-bottom: 30px;">
-                <h3 style="color: #6C63FF; font-size: 16px; font-weight: 700; margin: 0 0 12px 0;">WHAT'S NEXT?</h3>
-                <ul style="margin: 0; padding: 0; list-style: none;">
-                  <li style="color: #666; font-size: 15px; margin-bottom: 10px;">✨ Level up your study game with AI summaries.</li>
-                  <li style="color: #666; font-size: 15px; margin-bottom: 10px;">📊 Generate interactive quizzes from lectures.</li>
-                  <li style="color: #666; font-size: 15px;">🌍 Translate notes into 9 different languages.</li>
-                </ul>
-              </div>
-              
-              <div style="text-align: center;">
-                <p style="color: #888; font-size: 14px; margin-bottom: 20px;">Return to the app to set your secure access PIN.</p>
-              </div>
-            </div>
-            
-            <div style="background: #fafafa; padding: 30px; text-align: center; border-top: 1px solid #eee;">
-              <span style="color: #6C63FF; font-weight: 800; font-size: 20px;">AudioNote</span>
-              <p style="color: #aaa; font-size: 12px; margin-top: 8px;">Turning audio into knowledge, instantly.</p>
-            </div>
-          </div>
-        `,
-      });
-    } catch (mailError) {
-      console.error("Onboarding email failed:", mailError);
-    }
-
-    const sessionToken = generateToken(user.id);
-    res.json({ 
-      message: "Email verified successfully!", 
-      token: sessionToken,
+      message: "Account created successfully!",
+      token,
       user: {
         id: user.id,
         email: user.email,
         name: user.name,
-        preferredLanguage: user.preferredLanguage
-      }
+        preferredLanguage: user.preferredLanguage,
+        hasPin: !!user.pin,
+      },
     });
-  } catch (error) {
-    console.error("Verify Signup Error:", error);
+  } catch (error: any) {
+    if (error.code === "P2002")
+      return res.status(400).json({ error: "Email already exists" });
+    console.error("Signup Error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
@@ -450,22 +238,54 @@ app.post("/api/set-pin", authenticate, async (req: any, res) => {
 app.post("/api/login", async (req, res) => {
   try {
     const { email, pin } = req.body;
-    const user = await prisma.user.findUnique({ where: { email } });
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
 
     if (!user) {
       return res.status(401).json({ error: "Invalid email or PIN" });
     }
 
+    // Auto-mark account as verified so legacy unverified accounts are immediately active
     if (!user.isVerified) {
-      return res.status(403).json({ error: "Please verify your email first" });
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { isVerified: true, signupToken: null, signupTokenExpiry: null }
+      });
     }
 
+    // If user has NO PIN yet, register the entered PIN as their future PIN or request set-pin
     if (!user.pin) {
-      return res.status(400).json({ error: "No security PIN set for this account" });
-    }
-
-    if (!(await comparePassword(pin, user.pin))) {
-      return res.status(401).json({ error: "Invalid email or PIN" });
+      if (pin && pin.length === 4) {
+        const hashedPin = await hashPassword(pin);
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { pin: hashedPin, isVerified: true }
+        });
+      } else {
+        const token = generateToken(user.id);
+        return res.json({
+          requiresSetPin: true,
+          message: "Please set your 4-digit security PIN",
+          user: { 
+            id: user.id, 
+            email: user.email, 
+            name: user.name,
+            preferredLanguage: user.preferredLanguage 
+          },
+          token,
+        });
+      }
+    } else {
+      // Validate PIN against pin or password
+      const pinMatches = await comparePassword(pin, user.pin);
+      const passMatches = user.password ? await comparePassword(pin, user.password) : false;
+      if (!pinMatches && !passMatches) {
+        return res.status(401).json({ error: "Invalid email or PIN" });
+      }
     }
 
     const token = generateToken(user.id);
@@ -480,7 +300,7 @@ app.post("/api/login", async (req, res) => {
       token,
     });
   } catch (error) {
-    console.error(error);
+    console.error("Login Error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });
